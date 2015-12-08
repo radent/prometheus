@@ -134,6 +134,13 @@ var (
 		Port:            80,
 		RefreshInterval: Duration(60 * time.Second),
 	}
+
+	// DefaultGCEInstanceGroupSDConfig is the default GCE Instance Group SD configuration.
+	DefaultGCEInstanceGroupSDConfig = GCEInstanceGroupSDConfig{
+		ServiceAccount:  "default",
+		Port:            80,
+		RefreshInterval: Duration(60 * time.Second),
+	}
 )
 
 // URL is a custom URL type that allows validation at configuration load time.
@@ -359,6 +366,8 @@ type ScrapeConfig struct {
 	KubernetesSDConfigs []*KubernetesSDConfig `yaml:"kubernetes_sd_configs,omitempty"`
 	// List of EC2 service discovery configurations.
 	EC2SDConfigs []*EC2SDConfig `yaml:"ec2_sd_configs,omitempty"`
+	// List of GCE Instance Group service discovery configurations.
+	GCEInstanceGroupSDConfigs []*GCEInstanceGroupSDConfig `yaml:"gce_instance_group_sd_configs,omitempty"`
 
 	// List of target relabel configurations.
 	RelabelConfigs []*RelabelConfig `yaml:"relabel_configs,omitempty"`
@@ -640,6 +649,54 @@ type KubernetesSDConfig struct {
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+type GCEInstanceGroup struct {
+	// Name of zone within which the instance group is located. Required.
+	Zone string `yaml:"zone,omitempty"`
+
+	// Name of the instance group. Required.
+	GroupName string `yaml:"group_name,omitempty"`
+}
+
+// GCEInstanceGroupSD is the configuration for GCE Instance group service discovery.
+type GCEInstanceGroupSDConfig struct {
+	// Name of the service account to get an access token for.
+	ServiceAccount string `yaml:"service_account,omitempty"`
+
+	// HTTPS proxy URL to use for API calls, set if the API can only be
+	// reached via a proxy.
+	ApiProxyUrl string `yaml:"api_proxy_url,omitempty"`
+
+	// Name of Google project. Required.
+	Project string `yaml:"project,omitempty"`
+
+	// List of one or more instance groups to poll.
+	Groups []*GCEInstanceGroup `yaml:"groups"`
+
+	// If set, append this sub-domain to instance names. (e.g. c.<project-name>.internal)
+	AppendDomain string `yaml:"append_domain,omitempty"`
+
+	// Port number for HTTP metrics query.
+	Port int32 `yaml:"port,omitempty"`
+
+	// How often to poll instance groups for target changes (in seconds).
+	RefreshInterval Duration `yaml:"refresh_interval,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *GCEInstanceGroupSDConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGCEInstanceGroupSDConfig
+	type plain GCEInstanceGroupSDConfig
+	err := unmarshal((*plain)(c))
+	if err != nil {
+		return err
+	}
+	// TODO: Other error checking
+	return checkOverflow(c.XXX, "gce_instance_group_sd_config")
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
