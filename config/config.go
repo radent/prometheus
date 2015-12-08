@@ -661,7 +661,10 @@ type GCEInstanceGroup struct {
 
 // GCEInstanceGroupSD is the configuration for GCE Instance group service discovery.
 type GCEInstanceGroupSDConfig struct {
-	// Name of the service account to get an access token for.
+	// Use GCloud SDK to authenticate
+	UseSdk bool `yaml:"use_sdk,omitempty"`
+
+	// Account name to use.
 	ServiceAccount string `yaml:"service_account,omitempty"`
 
 	// HTTPS proxy URL to use for API calls, set if the API can only be

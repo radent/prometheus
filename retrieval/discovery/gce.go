@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -50,25 +53,42 @@ type GCEInstanceGroupDiscovery struct {
 	tokenExpires time.Time
 }
 
-func NewGCEInstanceGroupDiscovery(conf *config.GCEInstanceGroupSDConfig) (*GCEInstanceGroupDiscovery, error) {
-	retDiscovery := &GCEInstanceGroupDiscovery{
-		Conf: conf,
-	}
-
-	if len(conf.ApiProxyUrl) != 0 {
-		proxyUrl, err := url.Parse(conf.ApiProxyUrl)
+func newGoogleClient(conf *config.GCEInstanceGroupSDConfig) (*http.Client, error) {
+	transport := &oauth2.Transport{}
+	if conf.UseSDK {
+		sdkConf, err := google.NewSDKConfig(conf.ServiceAccount)
 		if err != nil {
 			return nil, err
 		}
-		retDiscovery.apiClient = &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyURL(proxyUrl),
-			},
-		}
+		transport.Source = sdkConf.TokenSource(oauth2.NoContext)
 	} else {
-		retDiscovery.apiClient = &http.Client{}
+		transport.Source = google.ComputeTokenSource(conf.ServiceAccount)
 	}
-	return retDiscovery, nil
+	if len(config.ApiProxyUrl) > 0 {
+		u, err := url.Parse(config.ApiProxyUrl)
+		if err != nil {
+			return nil, err
+		}
+		transport.Base = &http.Transport{Proxy: http.ProxyURL(u)}
+	}
+	return &http.Client{Transport: transport}, nil
+}
+
+func NewGCEInstanceGroupDiscovery(conf *config.GCEInstanceGroupSDConfig) (*GCEInstanceGroupDiscovery, error) {
+	client, err := newGoogleClient(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	retDiscovery := &GCEInstanceGroupDiscovery{
+		Conf:      conf,
+		apiClient: client,
+	}
+
+	return &GCEInstanceGroupDiscovery{
+		Conf:      conf,
+		apiClient: client,
+	}, nil
 }
 
 func (gce *GCEInstanceGroupDiscovery) groupToSource(group *config.GCEInstanceGroup) string {
@@ -205,7 +225,7 @@ func (gce *GCEInstanceGroupDiscovery) getInstanceGroupResources(group *config.GC
 		fmt.Sprintf("https://www.googleapis.com/resourceviews/v1beta2/projects/%s/zones/%s/resourceViews/%s",
 			gce.Conf.Project, group.Zone, group.GroupName)
 	req, _ := http.NewRequest("GET", getInstanceGroupUrl, nil)
-	req.Header.Add("Authorization", gce.authHeader)
+	//req.Header.Add("Authorization", gce.authHeader)
 	resp, err := gce.apiClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -231,10 +251,10 @@ func (gce *GCEInstanceGroupDiscovery) getInstanceGroupResources(group *config.GC
 }
 
 func (gce *GCEInstanceGroupDiscovery) getInstanceList(group *config.GCEInstanceGroup) ([]string, error) {
-	err := gce.refreshAccessToken()
-	if err != nil {
-		return nil, err
-	}
+	//err := gce.refreshAccessToken()
+	//if err != nil {
+	//return nil, err
+	//}
 
 	resources, err := gce.getInstanceGroupResources(group)
 	if err != nil {
