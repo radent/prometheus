@@ -137,6 +137,7 @@ var (
 
 	// DefaultGCEInstanceGroupSDConfig is the default GCE Instance Group SD configuration.
 	DefaultGCEInstanceGroupSDConfig = GCEInstanceGroupSDConfig{
+		UseSdk:          false,
 		ServiceAccount:  "default",
 		Port:            80,
 		RefreshInterval: Duration(60 * time.Second),
@@ -698,7 +699,11 @@ func (c *GCEInstanceGroupSDConfig) UnmarshalYAML(unmarshal func(interface{}) err
 	if err != nil {
 		return err
 	}
-	// TODO: Other error checking
+
+	if len(c.Project) == 0 {
+		return fmt.Errorf("gce_instance_group_sd_config: project is required.")
+	}
+
 	return checkOverflow(c.XXX, "gce_instance_group_sd_config")
 }
 
