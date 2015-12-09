@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	gceLabel              = model.MetaLabelPrefix + "gce_"
-	gceLabelZone          = gceLabel + "zone"
-	gceLabelInstanceGroup = gceLabel + "group"
-	gceLabelInstanceName  = gceLabel + "instance_name"
+	gceZone          = "zone"
+	gceInstanceGroup = "instance_group"
+	gceInstanceName  = "instance_name"
 )
 
 var (
@@ -47,15 +46,13 @@ func init() {
 }
 
 type GCEInstanceGroupDiscovery struct {
-	Conf         *config.GCEInstanceGroupSDConfig
-	apiClient    *http.Client
-	authHeader   string
-	tokenExpires time.Time
+	Conf      *config.GCEInstanceGroupSDConfig
+	apiClient *http.Client
 }
 
 func newGoogleClient(conf *config.GCEInstanceGroupSDConfig) (*http.Client, error) {
 	transport := &oauth2.Transport{}
-	if conf.UseSDK {
+	if conf.UseSdk {
 		sdkConf, err := google.NewSDKConfig(conf.ServiceAccount)
 		if err != nil {
 			return nil, err
@@ -64,8 +61,8 @@ func newGoogleClient(conf *config.GCEInstanceGroupSDConfig) (*http.Client, error
 	} else {
 		transport.Source = google.ComputeTokenSource(conf.ServiceAccount)
 	}
-	if len(config.ApiProxyUrl) > 0 {
-		u, err := url.Parse(config.ApiProxyUrl)
+	if len(conf.ApiProxyUrl) > 0 {
+		u, err := url.Parse(conf.ApiProxyUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -78,11 +75,6 @@ func NewGCEInstanceGroupDiscovery(conf *config.GCEInstanceGroupSDConfig) (*GCEIn
 	client, err := newGoogleClient(conf)
 	if err != nil {
 		return nil, err
-	}
-
-	retDiscovery := &GCEInstanceGroupDiscovery{
-		Conf:      conf,
-		apiClient: client,
 	}
 
 	return &GCEInstanceGroupDiscovery{
@@ -138,52 +130,6 @@ func (gce *GCEInstanceGroupDiscovery) Run(ch chan<- config.TargetGroup, done <-c
 	}
 }
 
-func (gce *GCEInstanceGroupDiscovery) refreshAccessToken() error {
-	if len(gce.authHeader) > 0 && gce.tokenExpires.After(time.Now()) {
-		// Still valid.
-		return nil
-	}
-
-	gce.authHeader = ""
-	accessTokenUrl :=
-		fmt.Sprintf("http://metadata/computeMetadata/v1/instance/service-accounts/%s/token",
-			gce.Conf.ServiceAccount)
-	req, _ := http.NewRequest("GET", accessTokenUrl, nil)
-	req.Header.Add("Metadata-Flavor", "Google")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Errorf("Read token response: %s", err)
-		return err
-	}
-
-	var tokenResponse struct {
-		AccessToken  string `json:"access_token"`
-		ExpiresInSec int    `json:"expires_in"`
-		TokenType    string `json:"token_type"`
-	}
-	err = json.Unmarshal(body, &tokenResponse)
-	if err != nil {
-		log.Errorf("Parse token response: %s", err)
-		return err
-	}
-
-	if len(tokenResponse.AccessToken) == 0 {
-		return fmt.Errorf("Empty access token.")
-	}
-
-	gce.authHeader = fmt.Sprintf("%s %s", tokenResponse.TokenType, tokenResponse.AccessToken)
-	gce.tokenExpires = time.Now().Add(time.Duration(tokenResponse.ExpiresInSec) * time.Second)
-
-	log.Infof("**** Refreshed %s access token, expires in %d sec",
-		tokenResponse.TokenType, tokenResponse.ExpiresInSec)
-	return nil
-}
-
 type _gceApiErrorJson struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -225,7 +171,6 @@ func (gce *GCEInstanceGroupDiscovery) getInstanceGroupResources(group *config.GC
 		fmt.Sprintf("https://www.googleapis.com/resourceviews/v1beta2/projects/%s/zones/%s/resourceViews/%s",
 			gce.Conf.Project, group.Zone, group.GroupName)
 	req, _ := http.NewRequest("GET", getInstanceGroupUrl, nil)
-	//req.Header.Add("Authorization", gce.authHeader)
 	resp, err := gce.apiClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -251,11 +196,6 @@ func (gce *GCEInstanceGroupDiscovery) getInstanceGroupResources(group *config.GC
 }
 
 func (gce *GCEInstanceGroupDiscovery) getInstanceList(group *config.GCEInstanceGroup) ([]string, error) {
-	//err := gce.refreshAccessToken()
-	//if err != nil {
-	//return nil, err
-	//}
-
 	resources, err := gce.getInstanceGroupResources(group)
 	if err != nil {
 		return nil, err
@@ -275,8 +215,8 @@ func (gce *GCEInstanceGroupDiscovery) refresh() ([]*config.TargetGroup, error) {
 		retGroup := &config.TargetGroup{
 			Source: gce.groupToSource(group),
 			Labels: model.LabelSet{
-				gceLabelZone:          model.LabelValue(group.Zone),
-				gceLabelInstanceGroup: model.LabelValue(group.GroupName),
+				gceZone:          model.LabelValue(group.Zone),
+				gceInstanceGroup: model.LabelValue(group.GroupName),
 			},
 		}
 		newInstanceList, err := gce.getInstanceList(group)
@@ -297,17 +237,13 @@ func (gce *GCEInstanceGroupDiscovery) refresh() ([]*config.TargetGroup, error) {
 		}
 		for _, instanceName := range newInstanceList {
 			targetLabels := model.LabelSet{
-				gceLabelInstanceName: model.LabelValue(instanceName),
+				gceInstanceName: model.LabelValue(instanceName),
 			}
-			endpoint := &url.URL{
-				Host: fmt.Sprintf("%s%s:%d",
-					instanceName,
-					domainSuffix,
-					gce.Conf.Port),
-			}
-			targetLabels[model.AddressLabel] = model.LabelValue(endpoint.String())
+			host := fmt.Sprintf("%s%s:%d", instanceName, domainSuffix, gce.Conf.Port)
+			targetLabels[model.AddressLabel] = model.LabelValue(host)
 			retGroup.Targets = append(retGroup.Targets, targetLabels)
 		}
+		retGroups = append(retGroups, retGroup)
 	}
 
 	return retGroups, nil
