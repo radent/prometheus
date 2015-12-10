@@ -1,5 +1,15 @@
 package discovery
 
+/*
+ * Google Compute Engine Instance Group Discovery code.
+ *
+ * Implementing a TargetProvider to poll GCE.
+ * Works when prometheus is running on an instance, or
+ * when gcloud SDK is installed locally, with the right
+ * DNS setup.
+ *
+ */
+
 import (
 	"encoding/json"
 	"errors"
@@ -45,6 +55,8 @@ func init() {
 	prometheus.MustRegister(gceDiscoveryClientBackends)
 }
 
+// GCEInstanceGroupDiscovery periodically polls the
+// GCE instance groups for a list of instance targets.
 type GCEInstanceGroupDiscovery struct {
 	Conf      *config.GCEInstanceGroupSDConfig
 	apiClient *http.Client
@@ -104,26 +116,12 @@ func (gce *GCEInstanceGroupDiscovery) Run(ch chan<- config.TargetGroup, done <-c
 	defer ticker.Stop()
 
 	// Get an initial set right away.
-	tg, err := gce.refresh()
-	if err != nil {
-		log.Error(err)
-	} else {
-		for _, group := range tg {
-			ch <- *group
-		}
-	}
+	gce.tick(ch)
 
 	for {
 		select {
 		case <-ticker.C:
-			tg, err := gce.refresh()
-			if err != nil {
-				log.Error(err)
-			} else {
-				for _, group := range tg {
-					ch <- *group
-				}
-			}
+			gce.tick(ch)
 		case <-done:
 			return
 		}
@@ -247,4 +245,15 @@ func (gce *GCEInstanceGroupDiscovery) refresh() ([]*config.TargetGroup, error) {
 	}
 
 	return retGroups, nil
+}
+
+func (gce *GCEInstanceGroupDiscovery) tick(ch chan<- config.TargetGroup) {
+	tg, err := gce.refresh()
+	if err != nil {
+		log.Error(err)
+	} else {
+		for _, group := range tg {
+			ch <- *group
+		}
+	}
 }
