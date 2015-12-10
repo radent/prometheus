@@ -263,6 +263,41 @@
 			"revisionTime": "2015-08-24T18:07:02+02:00"
 		},
 		{
+			"path": "golang.org/x/oauth2",
+			"revision": "2baa8a1b9338cf13d9eeb27696d761155fa480be",
+			"revisionTime": "2015-12-03T13:21:41-08:00"
+		},
+		{
+			"path": "golang.org/x/oauth2/google",
+			"revision": "2baa8a1b9338cf13d9eeb27696d761155fa480be",
+			"revisionTime": "2015-12-03T13:21:41-08:00"
+		},
+		{
+			"path": "golang.org/x/oauth2/internal",
+			"revision": "2baa8a1b9338cf13d9eeb27696d761155fa480be",
+			"revisionTime": "2015-12-03T13:21:41-08:00"
+		},
+		{
+			"path": "golang.org/x/oauth2/jws",
+			"revision": "2baa8a1b9338cf13d9eeb27696d761155fa480be",
+			"revisionTime": "2015-12-03T13:21:41-08:00"
+		},
+		{
+			"path": "golang.org/x/oauth2/jwt",
+			"revision": "2baa8a1b9338cf13d9eeb27696d761155fa480be",
+			"revisionTime": "2015-12-03T13:21:41-08:00"
+		},
+		{
+			"path": "google.golang.org/cloud/compute/metadata",
+			"revision": "ec5efcc6a7862ae410e34d8de21fdec12e367732",
+			"revisionTime": "2015-12-08T15:22:33+11:00"
+		},
+		{
+			"path": "google.golang.org/cloud/internal",
+			"revision": "ec5efcc6a7862ae410e34d8de21fdec12e367732",
+			"revisionTime": "2015-12-08T15:22:33+11:00"
+		},
+		{
 			"path": "gopkg.in/fsnotify.v1",
 			"revision": "96c060f6a6b7e0d6f75fddd10efeaca3e5d1bcb0",
 			"revisionTime": "2015-02-08T13:29:58-07:00"
